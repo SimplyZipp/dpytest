@@ -13,3 +13,6 @@ JsonList = typing.List[JsonVal]
 Callback = typing.Callable[..., typing.Coroutine[None, None, None]]
 AnyChannel = typing.Union[discord.TextChannel, discord.CategoryChannel,
                           discord.abc.GuildChannel, discord.abc.PrivateChannel]
+AnyCommand = typing.Union[discord.app_commands.Command,
+                          discord.app_commands.ContextMenu,
+                          discord.app_commands.Group]

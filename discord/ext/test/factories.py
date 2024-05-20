@@ -610,3 +610,91 @@ def dict_from_guild(guild: discord.Guild) -> _types.JsonDict:
         'system_channel_id': guild.system_channel.id if guild.system_channel else None,
         'owner': guild.owner_id == guild.me.id
     }
+
+
+def make_interaction_dict(
+        type_num: int,
+        channel: _types.AnyChannel,  # type probably isn't right
+        id_num: int = -1,
+        *,
+        guild_id: int = None,
+        token: str = None,
+        application_id: int = 0,
+        version: int = 1,
+        authorizing_integration_owners: typing.Dict[typing.Literal['0', '1'], int] = None,
+        **kwargs
+) -> _types.JsonDict:
+
+    if id_num < 0:
+        id_num = make_id()
+    if authorizing_integration_owners is None:
+        authorizing_integration_owners = {}
+
+    out = {
+        'id': id_num,
+        'application_id': application_id,
+        'token': token,
+        'version': version,
+        'guild_id': guild_id,
+        'channel': dict_from_channel(channel),
+        'authorizing_integration_owners': authorizing_integration_owners,
+        'type': type_num
+    }
+    # member, user, and message are special fields (for some reason) not mentioned in the TypedDict but are still
+    # accessed by the parser
+    items = ("member", "user", "message", "guild", "channel_id", "app_permissions", "locale",
+             "guild_locale", "entitlement_sku_ids", "entitlements", "context")
+    _fill_optional(out, kwargs, items)
+    return out
+
+
+def make_interaction_application_command_dict(
+        command: _types.AnyCommand,
+        params: dict[str, typing.Any],
+        channel: _types.AnyChannel,  # type probably isn't right
+        focused_param: str = None,
+        interaction_id: int = -1,
+        *,
+        command_id: int = None,
+        guild_id: int = None,
+        **kwargs
+) -> _types.JsonDict:
+
+    base_dict = make_interaction_dict(2, channel, interaction_id, guild_id=guild_id, **kwargs)
+    data_dict = {
+        'type': 1,
+        'id': command_id,
+        'name': command.name,
+        'guild_id': guild_id,
+        'options': make_data_option_list(command, params, focused_param)
+    }
+    items = ("resolved")
+    _fill_optional(data_dict, kwargs, items)
+    base_dict['data'] = data_dict
+    return base_dict
+
+
+def make_data_option_list(
+        command: _types.AnyCommand,
+        params: dict[str, typing.Any],
+        focused_param: str = None
+) -> _types.JsonList:
+
+    options = []
+    for pname, pval in params.items():
+        parameter = command.get_parameter(pname)
+        if parameter is None:
+            raise NameError('Parameter name doesn\'t exist')
+
+        # TODO: Need to somehow verify the value type
+        # Something to do with AppCommandOptionType
+
+        options.append(
+            {
+                'type': parameter.type.value,
+                'name': parameter.name,  # Using the actual parameter name, not the rename. Might need to change
+                'focused': focused_param == pname,
+                'value': pval
+            }
+        )
+    return options

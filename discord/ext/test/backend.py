@@ -1082,6 +1082,26 @@ def unpin_message(channel_id: int, message_id: int):
     state.parse_channel_pins_update(data)
 
 
+def make_interaction_application(
+        command: _types.AnyCommand,
+        params: dict[str, typing.Any],
+        channel: _types.AnyChannel,  # type probably isn't right
+        focused_param: str = None,
+        guild_id: int = None,
+        member: discord.Member = None,
+        **kwargs
+):
+    if command is None:
+        raise NameError('Invalid command name')
+
+    data = facts.make_interaction_application_command_dict(command, params, channel, focused_param, guild_id=guild_id, **kwargs)
+    if member is not None:
+        data['member'] = facts.dict_from_member(member)
+
+    state = get_state()
+    state.parse_interaction_create(data)
+
+
 @typing.overload
 def configure(client: discord.Client) -> None: ...
 
@@ -1121,5 +1141,11 @@ def configure(client: typing.Optional[discord.Client], *, use_dummy: bool = Fals
     http.state = test_state
 
     client._connection = test_state
+
+    # TODO: this won't work for normal clients
+    tree: discord.app_commands.CommandTree = client.tree
+    tree._http = http
+    tree._state = test_state
+    test_state._command_tree = tree
 
     _cur_config = BackendState({}, test_state)

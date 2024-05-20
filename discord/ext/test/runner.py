@@ -78,10 +78,10 @@ async def run_all_events() -> None:
             pending = asyncio.all_tasks()
         else:
             pending = asyncio.Task.all_tasks()
-        if not any(map(lambda x: _task_coro_name(x) == "_run_event" and not (x.done() or x.cancelled()), pending)):
+        if not any(map(lambda x: (_task_coro_name(x) == "_run_event" or _task_coro_name(x) == "wrapper") and not (x.done() or x.cancelled()), pending)):
             break
         for task in pending:
-            if _task_coro_name(task) == "_run_event" and not (task.done() or task.cancelled()):
+            if (_task_coro_name(task) == "_run_event" or _task_coro_name(task) == "wrapper") and not (task.done() or task.cancelled()):
                 await task
 
 
@@ -344,6 +344,24 @@ async def member_join(
         raise ValueError("Cannot supply user at the same time as name/discrim")
     member = back.make_member(user, guild)
     return member
+
+
+async def create_interaction(
+        command_name: str,
+        params: dict[str, typing.Any],
+        member: discord.Member = None,
+        channel: _types.AnyChannel = None,
+        guild_id: int = None
+):
+    if isinstance(member, int):
+        member = _cur_config.members[member]
+    client: discord.ext.commands.Bot = _cur_config.client
+    back.make_interaction_application(client.tree.get_command(command_name),
+                                      params,
+                                      channel,
+                                      guild_id=guild_id,
+                                      member=member)
+    await run_all_events()
 
 
 def get_config() -> RunnerConfig:
