@@ -14,7 +14,7 @@ import asyncio
 import pathlib
 import discord
 
-from .runner import sent_queue, get_config
+from .runner import sent_queue, get_config, interaction_dict
 from .utils import embed_eq, activity_eq
 
 
@@ -270,6 +270,58 @@ class VerifyActivity:
         return self
 
 
+class VerifyInteraction:
+    """
+        Builder for interaction verifications. When done building, should be asserted
+
+        **Example**:
+        ``assert not dpytest.verify().interaction(iid)``
+    """
+
+    def __init__(self, interaction_id: int):
+        # Need an interaction ID because verifying interaction data via queue doesn't make much sense
+        # I believe interactions can be responded to in multiple callbacks, so verifying information at
+        # different stages may be desired.
+        self._id = interaction_id
+        self._used = False
+
+        self._contains = False
+        self._content = _undefined
+
+    def __del__(self) -> None:
+        if not self._used:
+            import warnings
+            warnings.warn("VerifyMessage dropped without being used, did you forget an `assert`?", RuntimeWarning)
+
+    def __bool__(self) -> bool:
+        self._used = True
+
+        try:
+            params = interaction_dict[self._id]
+        except KeyError:
+            raise ValueError(f'Interaction ID {self._id} doesn\'t exist.')
+
+        payload_data = params.payload['data']
+
+        if self._content is None and payload_data['content']:
+            return False
+
+        if self._contains and self._content not in payload_data['content']:
+            return False
+        if not self._contains and self._content != payload_data['content']:
+            return False
+
+        return True
+
+    def response(self, content: str = None) -> 'VerifyInteraction':
+        self._content = content
+        return self
+
+    def contains(self) -> 'VerifyInteraction':
+        self._contains = True
+        return self
+
+
 class Verify:
     """
         Base for all kinds of verification builders. Used as an
@@ -294,6 +346,16 @@ class Verify:
         :return: Activity verification builder
         """
         return VerifyActivity()
+
+    def interaction(self, interaction_id: int) -> VerifyInteraction:
+        """
+            Verify an interaction
+
+        :param interaction_id: The ID of the interaction, given by the methods that create an interaction
+        :return: Interaction verification builder
+        """
+        return VerifyInteraction(interaction_id)
+
 
 
 def verify() -> Verify:

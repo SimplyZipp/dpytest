@@ -18,3 +18,4 @@ from .verify import verify as verify
 from .verify import Verify as Verify
 from .verify import VerifyMessage as VerifyMessage
 from .verify import VerifyActivity as VerifyActivity
+from .verify import VerifyInteraction as VerifyInteraction

@@ -13,6 +13,7 @@ import sys
 import asyncio
 import logging
 import discord
+import discord.http as dhttp
 import typing
 import pathlib
 
@@ -38,6 +39,7 @@ log = logging.getLogger("discord.ext.tests")
 _cur_config: typing.Optional[RunnerConfig] = None
 sent_queue: PeekableQueue = PeekableQueue()
 error_queue: PeekableQueue = PeekableQueue()
+interaction_dict: dict[int, dhttp.MultipartParameters] = {}
 
 
 def require_config(func: typing.Callable[..., _types.T]) -> typing.Callable[..., _types.T]:
@@ -53,6 +55,27 @@ def require_config(func: typing.Callable[..., _types.T]) -> typing.Callable[...,
         if _cur_config is None:
             log.error("Attempted to make call before runner configured")
             raise RuntimeError(f"Configure runner before calling {func.__name__}")
+        return func(*args, **kwargs)
+
+    wrapper.__wrapped__ = func
+    wrapper.__annotations__ = func.__annotations__
+    wrapper.__doc__ = func.__doc__
+    return wrapper
+
+
+def require_command_config(func: typing.Callable[..., _types.T]) -> typing.Callable[..., _types.T]:
+    """
+        Decorator to enforce that configuration is completed and the client is a commands.Bot
+
+    :param func: Function to decorate
+    :return: Function with added check for configuration being setup
+    """
+
+    @require_config
+    def wrapper(*args, **kwargs):
+        if not isinstance(_cur_config.client, discord.ext.commands.Bot):
+            log.error("Attempted to make call with discord.Client, not commands.Bot")
+            raise RuntimeError(f"Cannot call {func.__name__}, the given client doesn't support interactions")
         return func(*args, **kwargs)
 
     wrapper.__wrapped__ = func
@@ -163,6 +186,17 @@ async def _edit_member_callback(fields: typing.Any, member: discord.Member, reas
     channel = fields.get('channel_id')
     if not fields.get('nick') and not fields.get('roles'):
         guild._update_voice_state(data, channel)
+
+
+async def _interaction_callback(interaction_id: int, params: dhttp.MultipartParameters) -> None:
+    """
+        Internal callback. Adds interaction data when an interaction response of some sort is sent
+        to discord.
+
+    :param interaction_id: The ID of the interaction.
+    :param params: The multipart parameters of the interaction. **Type under consideration
+    """
+    interaction_dict[interaction_id] = params
 
 
 counter = count(0)
@@ -346,22 +380,25 @@ async def member_join(
     return member
 
 
+@require_command_config
 async def create_interaction(
         command_name: str,
         params: dict[str, typing.Any],
         member: discord.Member = None,
         channel: _types.AnyChannel = None,
         guild_id: int = None
-):
+) -> int:
     if isinstance(member, int):
         member = _cur_config.members[member]
     client: discord.ext.commands.Bot = _cur_config.client
-    back.make_interaction_application(client.tree.get_command(command_name),
+    interaction_id = back.make_interaction_application(client.tree.get_command(command_name),
                                       params,
                                       channel,
                                       guild_id=guild_id,
                                       member=member)
     await run_all_events()
+
+    return interaction_id
 
 
 def get_config() -> RunnerConfig:
@@ -415,6 +452,7 @@ def configure(client: discord.Client,
     # Configure global callbacks
     callbacks.set_callback(_message_callback, "send_message")
     callbacks.set_callback(_edit_member_callback, "edit_member")
+    callbacks.set_callback(_interaction_callback, "create_interaction")
 
     back.get_state().stop_dispatch()
 

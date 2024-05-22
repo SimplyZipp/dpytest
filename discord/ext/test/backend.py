@@ -16,6 +16,7 @@ import datetime
 
 import discord
 import discord.http as dhttp
+import discord.ext.commands as dcommands
 import pathlib
 import urllib.parse
 import urllib.request
@@ -1090,7 +1091,7 @@ def make_interaction_application(
         guild_id: int = None,
         member: discord.Member = None,
         **kwargs
-):
+) -> int:
     if command is None:
         raise NameError('Invalid command name')
 
@@ -1100,6 +1101,7 @@ def make_interaction_application(
 
     state = get_state()
     state.parse_interaction_create(data)
+    return data['id']
 
 
 @typing.overload
@@ -1142,10 +1144,11 @@ def configure(client: typing.Optional[discord.Client], *, use_dummy: bool = Fals
 
     client._connection = test_state
 
-    # TODO: this won't work for normal clients
-    tree: discord.app_commands.CommandTree = client.tree
-    tree._http = http
-    tree._state = test_state
-    test_state._command_tree = tree
+    if isinstance(client, dcommands.Bot):
+        # Normal clients don't have a command tree
+        tree: discord.app_commands.CommandTree = client.tree
+        tree._http = http
+        tree._state = test_state
+        test_state._command_tree = tree
 
     _cur_config = BackendState({}, test_state)

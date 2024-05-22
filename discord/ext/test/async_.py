@@ -36,6 +36,15 @@ class FakeAdapter(dasync.AsyncWebhookAdapter):
         )
 
     # TODO: Override other methods
+    # Important ones:
+    #   execute_webhook
+    #   get_webhook_message
+    #   edit_webhook_message
+    #   delete_webhook_message
+    #   create_interaction_response
+    #   get_original_interaction_response
+    #   edit_original_interaction_response
+    #   delete_original_interaction_response
 
     async def create_interaction_response(
         self,
@@ -52,8 +61,11 @@ class FakeAdapter(dasync.AsyncWebhookAdapter):
         # Use callbacks.dispatch_event from here
         # TODO: Follow discord API?
         # https://discord.com/developers/docs/interactions/receiving-and-responding#create-interaction-response
-        #
-        raise NotImplementedError(f'create_interaction_response not yet implemented.')
+        # Could store the multipart parameter, it contains most information needed. (No user but is it really needed?
+        # Testing user permissions is easily done by testing whether command gets rejected or not.)
+
+        await callbacks.dispatch_event('create_interaction', interaction_id=interaction_id, params=params)
+        #raise NotImplementedError(f'create_interaction_response not yet implemented.')
 
 
 class FakeInteraction(discord.Interaction):
